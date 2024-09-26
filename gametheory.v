@@ -110,6 +110,31 @@ Module FunctionalCalculus (MinMaxMod : MinMax) (E:TotalOrder').
   Qed.
 
 
+  (* Now we can discuss saddle points of bivariate functions, where x0 is the
+  maximums of all xs and y0 is the minimum of all y *)
+  (* saddle points may not exists, but if they do, they have this property *)
+  Definition saddle_point (f: X -> X -> t) (x0 y0:X) := min (f x0) = f x0 y0 /\ max (fun x' => f x' y0) = f x0 y0. 
+
+  Lemma saddle_value_unique : forall (f: X -> X -> t) (x0 y0 x0' y0': X), saddle_point f x0 y0 -> saddle_point f x0' y0' -> f x0 y0 == f x0' y0'.
+  Proof.
+  intros f x0 y0 x0' y0' [minf0 maxf0] [minf0' maxf0']. 
+  apply lower_a_b_eq. 
+  - rewrite <- maxf0. 
+    rewrite <- minf0'.  
+    apply le_trans with (f x0' y0). 
+    + apply min_is_minimum. 
+    + apply (max_is_maximum (fun x' : X => f x' y0)). 
+  - rewrite <- maxf0'.
+    rewrite <- minf0. 
+    apply le_trans with (f x0 y0'). 
+    + apply min_is_minimum. 
+    + apply (max_is_maximum (fun x' : X => f x' y0')). 
+  Qed.
+
+
+
+    .
+
 
 
 End FunctionalCalculus.
