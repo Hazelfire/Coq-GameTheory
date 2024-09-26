@@ -32,11 +32,11 @@ Module Type MinMax( E:TotalOrder').
   Parameter X : Type.
   Parameter min : (X -> t) -> t.
   Axiom min_exists :
-    forall f, exists x0, min f = f x0.
+    forall f, exists x0, min f == f x0.
   Axiom min_is_minimum : forall f x, min f <= f x.
   Parameter max : (X -> t) -> t.
   Axiom max_exists :
-    forall f, exists x0, max f = f x0.
+    forall f, exists x0, max f == f x0.
   Axiom max_is_maximum : forall f x, f x <= max f.
 End MinMax.
 
@@ -52,6 +52,40 @@ Module FunctionalCalculus (MinMaxMod : MinMax) (E:TotalOrder').
     order. 
   Qed.
 
+  Instance Proper_le : Proper (eq ==> eq ==> Basics.flip Basics.impl) le.
+  Proof.
+    intros x y H1 z w H2.
+    unfold Basics.flip. 
+    unfold Basics.impl. 
+    order. 
+  Qed.
+
+
+  (* An amusingly useful lemma in this field *)
+  Lemma lower_a_b_eq : forall a b, a <= b -> b <= a -> b == a.
+  Proof.
+    order. 
+  Qed.
+
+  (* An odd lemma about the construction of minimum *)
+  Lemma min_construction : forall (f: X -> t) x0, (forall x, f x0 <= f x) -> min f == f x0.
+  Proof.
+    intros. 
+    apply lower_a_b_eq.
+    - destruct (min_exists f) as [x0' Hminx]. 
+      rewrite Hminx. 
+      apply H. 
+    - apply min_is_minimum. 
+  Qed.
+
+  Lemma max_construction : forall (f: X -> t) x0, (forall x, f x <= f x0) -> max f == f x0.
+  Proof.
+    intros. 
+    apply lower_a_b_eq.
+    - apply max_is_maximum.
+    - destruct (max_exists f) as [x0' ->]. 
+      apply H. 
+  Qed.
 
   (* First we prove that if you find the minimum over two variables,
      it must necesarily be the minimum of the bivariate function *)
@@ -63,10 +97,6 @@ Module FunctionalCalculus (MinMaxMod : MinMax) (E:TotalOrder').
     - apply min_is_minimum. 
   Qed.
 
-  Lemma lower_a_b_eq : forall a b, a <= b -> b <= a -> b == a.
-  Proof.
-    order. 
-  Qed.
 
 
   (* Therefore this means that the both the left and the right of this
@@ -113,8 +143,9 @@ Module FunctionalCalculus (MinMaxMod : MinMax) (E:TotalOrder').
   (* Now we can discuss saddle points of bivariate functions, where x0 is the
   maximums of all xs and y0 is the minimum of all y *)
   (* saddle points may not exists, but if they do, they have this property *)
-  Definition saddle_point (f: X -> X -> t) (x0 y0:X) := min (f x0) = f x0 y0 /\ max (fun x' => f x' y0) = f x0 y0. 
+  Definition saddle_point (f: X -> X -> t) (x0 y0:X) := min (f x0) == f x0 y0 /\ max (fun x' => f x' y0) == f x0 y0. 
 
+  (* The saddle value is unique *)
   Lemma saddle_value_unique : forall (f: X -> X -> t) (x0 y0 x0' y0': X), saddle_point f x0 y0 -> saddle_point f x0' y0' -> f x0 y0 == f x0' y0'.
   Proof.
   intros f x0 y0 x0' y0' [minf0 maxf0] [minf0' maxf0']. 
@@ -131,20 +162,62 @@ Module FunctionalCalculus (MinMaxMod : MinMax) (E:TotalOrder').
     + apply (max_is_maximum (fun x' : X => f x' y0')). 
   Qed.
 
+  (* Corresponds to 13:A in the book. *)
+  Theorem max_min_lower_equal_min_max : forall (f : X -> X -> t), max (fun x => min (f x)) <= min (fun y => max (fun x => f x y)).
+  Proof.
+    intros.
+    destruct (max_exists (fun x : X => min (f x))) as [x0 Hx0max]. 
+    rewrite -> Hx0max. 
+    destruct (min_exists (fun y => max (fun x => f x y))) as [y0 Hy0min]. 
+    rewrite -> Hy0min. 
+    apply le_trans with (f x0 y0). 
+    - apply min_is_minimum. 
+    - apply (max_is_maximum (fun x : X => f x y0)).
+  Qed. 
 
-
-    .
-
-
+  (* Corresponds to 13:B in the book *)
+  Theorem min_max_equal_iff_saddle_point : forall (f : X -> X -> t), max (fun x => min (f x)) == min (fun y => max (fun x => f x y)) <-> exists x0 y0, saddle_point f x0 y0. 
+  Proof.
+    intros f.
+    split.
+     - intros minMaxEq.
+       unfold saddle_point. 
+       destruct (max_exists (fun x : X => min (f x))) as [x0 Hx0max]. 
+       destruct (min_exists (fun y => max (fun x => f x y))) as [y0 Hy0min]. 
+       exists x0.
+       exists y0.
+       assert (max (fun x => f x y0) == min (f x0)).
+       { rewrite <- Hy0min. 
+         rewrite <- Hx0max. 
+         symmetry. 
+         exact minMaxEq. 
+       } 
+       split.
+       + assert (forall y, f x0 y0 <= f x0 y ).
+         { 
+           intros x. 
+           apply le_trans with (max (fun x => f x y0)). 
+           + apply (max_is_maximum (fun x => f x y0)). 
+           + rewrite -> H. 
+             apply min_is_minimum. 
+         }
+         apply min_construction. 
+         exact H0. 
+      + apply (max_construction (fun x' => f x' y0)). 
+         intros x. 
+         apply le_trans with (max (fun x => f x y0)). 
+         * apply (max_is_maximum (fun x => f x y0)). 
+         * rewrite -> H. 
+           apply min_is_minimum. 
+     - intros [x0 [y0 [Hx0min Hy0max]]]. 
+       apply lower_a_b_eq.
+       + apply le_trans with (f x0 y0).
+         * rewrite <- Hy0max. 
+           apply (min_is_minimum (fun y : X => max (fun x : X => f x y))). 
+         * rewrite <- Hx0min. 
+           apply (max_is_maximum (fun x : X => min (f x))). 
+       + apply max_min_lower_equal_min_max. 
+  Qed.
 
 End FunctionalCalculus.
 
-Module StrictlyDetermined.
-  (* The next goal is to define what it means to be strictly determined. A
-   * strictly determined game is one where knowing the strategy before you
-   * start playing the game advantages the player. *)
-
-  (* We first determine the majorant and minorant of a given game *)
-   
-
-End StrictlyDetermined.
